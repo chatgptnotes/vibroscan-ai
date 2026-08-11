@@ -1,0 +1,92 @@
+# Build a signed release APK in the cloud via GitHub Actions.
+# Trigger: push a tag like "v1.0.0", or run manually from the Actions tab
+# (Workflow dispatch). The APK is uploaded as a build artifact you can download.
+#
+# Why cloud build: Android Studio is heavy (~10GB, slow on weak laptops). This
+# workflow builds on GitHub's runners — your laptop only downloads the final
+# ~5MB APK. The APK is signed with a release keystore stored as a repo secret,
+# so Play Protect trusts it (no more "package appears invalid").
+
+name: Build Android APK
+
+on:
+  workflow_dispatch: # manual trigger from Actions tab
+  push:
+    tags:
+      - 'v*' # triggers on any tag like v1.0.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+
+      - name: Install root deps (Capacitor CLI)
+        run: npm install
+
+      - name: Install client deps
+        run: npm install
+        working-directory: client
+
+      - name: Build web + sync to Android
+        env:
+          VITE_API_URL_MOBILE: 'https://backend-production-48d99.up.railway.app'
+        run: node scripts/build-mobile.mjs
+
+      - name: Decode release keystore
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+          echo "Keystore decoded."
+
+      - name: Build release APK (signed if keystore present, else debug-signed)
+        env:
+          KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && 'app/release.keystore' || '' }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: android
+        run: |
+          if [ -n "$KEYSTORE_PATH" ] && [ -f "$KEYSTORE_PATH" ]; then
+            echo "Building SIGNED release APK..."
+            ./gradlew assembleRelease -Pandroid.injected.signing.store.file=$KEYSTORE_PATH \
+              -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+              -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+              -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+          else
+            echo "No keystore secret set — building DEBUG APK (still installs fine, signed with Android debug key)..."
+            ./gradlew assembleDebug
+          fi
+
+      - name: Locate APK
+        id: apk
+        working-directory: android
+        run: |
+          APK=$(find . -name "*.apk" -path "*build/outputs*" | head -1)
+          echo "path=$APK" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibroscan-ai-apk
+          path: android/${{ steps.apk.outputs.path }}
+          retention-days: 30
+          if-no-files-found: error

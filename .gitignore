@@ -34,3 +34,4 @@ Thumbs.db
 local.properties
 *.keystore
 !debug.keystore
+vibroscan-release.keystore
