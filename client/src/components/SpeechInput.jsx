@@ -14,6 +14,7 @@ const LANGS = [
 export default function SpeechInput({ onTranscript, lang, setLang, disabled }) {
   const recognitionRef = useRef(null);
   const wantListeningRef = useRef(false);
+  const lastFinalRef = useRef(''); // tracks last appended final text (de-dup for mobile)
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
 
@@ -37,8 +38,21 @@ export default function SpeechInput({ onTranscript, lang, setLang, disabled }) {
         if (event.results[i].isFinal) finalText += transcript + ' ';
         else interim += transcript;
       }
-      if (finalText.trim()) onTranscript(finalText, false);
-      else if (interim) onTranscript(interim, true);
+      if (finalText.trim()) {
+        // De-duplicate: on mobile WebView, the auto-restart re-emits the last
+        // final segment. If the new text matches the tail of what was already
+        // appended, skip it to prevent word repetition.
+        const trimmed = finalText.trim();
+        const tail = lastFinalRef.current.slice(-trimmed.length - 10);
+        if (tail.toLowerCase().includes(trimmed.toLowerCase()) && trimmed.length < lastFinalRef.current.length + 5) {
+          // Duplicate — skip.
+        } else {
+          onTranscript(finalText, false);
+          lastFinalRef.current = trimmed;
+        }
+      } else if (interim) {
+        onTranscript(interim, true);
+      }
     };
 
     recognition.onerror = (e) => {

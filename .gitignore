@@ -35,3 +35,10 @@ local.properties
 *.keystore
 !debug.keystore
 vibroscan-release.keystore
+
+# PWABuilder downloads
+VibrationCheck -*package*
+VibrationCheck -*.zip
+*-unsigned.*
+app-release.apk
+vibroscan-ai-apk.zip

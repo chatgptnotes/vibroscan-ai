@@ -1,8 +1,25 @@
 import { useRef } from 'react';
 
 /**
+ * Detects whether the app is running inside a Capacitor native container
+ * (Android APK) vs a regular browser.
+ */
+const isNativePlatform = () => {
+  try {
+    return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.();
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Two distinct CTAs: "Take Photo" (camera capture) and "Upload Chart" (file picker).
- * Per spec: client compresses before submission (handled by lib/compress.js in App).
+ *
+ * On native (Capacitor APK): uses @capacitor/camera which calls Android's native
+ * camera intent directly. The HTML <input capture> attribute is IGNORED by the
+ * WebView, so we must use the plugin.
+ *
+ * On web (browser): uses standard <input type="file" capture="environment">.
  */
 export default function ImageCapture({ onImage, previewUrl, disabled }) {
   const cameraInputRef = useRef(null);
@@ -14,13 +31,51 @@ export default function ImageCapture({ onImage, previewUrl, disabled }) {
     e.target.value = ''; // allow re-selecting the same file
   };
 
+  /**
+   * Native camera via Capacitor Camera plugin.
+   * Returns a dataUrl (base64) which we convert to a File for the upload pipeline.
+   */
+  const takePhotoNative = async () => {
+    try {
+      const { Camera } = await import('@capacitor/camera');
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: 'DataUrl', // base64 data URL
+        source: 'CAMERA', // force the camera (not gallery)
+        correctOrientation: true,
+        saveToGallery: false,
+      });
+      // Convert the dataUrl to a File so the existing compression/upload works unchanged.
+      const res = await fetch(photo.dataUrl);
+      const blob = await res.blob();
+      const ext = photo.format || 'jpeg';
+      const file = new File([blob], `photo.${ext}`, { type: `image/${ext}` });
+      onImage(file);
+    } catch (err) {
+      // User cancelled camera — silently ignore (not an error).
+      if (!String(err).includes('cancelled') && !String(err).includes('User denied')) {
+        console.warn('[camera] native capture failed, falling back to input:', err);
+        cameraInputRef.current?.click();
+      }
+    }
+  };
+
+  const handleTakePhoto = () => {
+    if (isNativePlatform()) {
+      takePhotoNative();
+    } else {
+      cameraInputRef.current?.click();
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
           disabled={disabled}
-          onClick={() => cameraInputRef.current?.click()}
+          onClick={handleTakePhoto}
           className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-sky-500 px-4 py-5 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 transition active:scale-[0.98] disabled:opacity-50"
         >
           <CameraIcon />
@@ -37,6 +92,7 @@ export default function ImageCapture({ onImage, previewUrl, disabled }) {
         </button>
       </div>
 
+      {/* Hidden inputs — used on web only (native path uses Capacitor Camera) */}
       <input
         ref={cameraInputRef}
         type="file"
