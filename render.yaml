@@ -1,0 +1,32 @@
+# Render Blueprint for the VibrationCheck API.
+# Deploy via: New → Blueprint → connect this repo (Render reads render.yaml).
+# `sync: false` env vars must be entered manually in the Render dashboard.
+services:
+  - type: web
+    name: vibrationcheck-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_VERIFICATION_MODEL
+        value: gemini-flash-latest
+      - key: GEMINI_DIAGNOSTIC_MODEL
+        value: gemini-flash-latest
+      - key: GLM_API_KEY
+        sync: false
+      - key: GLM_MODEL
+        value: glm-4.6
+      - key: DIAGNOSTIC_PROVIDER
+        value: gemini
+      - key: REQUEST_TIMEOUT_MS
+        value: 120000

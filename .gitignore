@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Env (keep placeholders local — these contain REAL secrets)
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Large reference PDF (kept locally; re-add from source if needed)
+*.pdf
+
+# Temp output from diagnostic scripts
+*-result.txt
+*-out.txt
+*-err.txt
