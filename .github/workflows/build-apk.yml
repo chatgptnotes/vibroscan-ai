@@ -52,6 +52,36 @@ jobs:
           VITE_API_URL_MOBILE: 'https://backend-production-48d99.up.railway.app'
         run: node scripts/build-mobile.mjs
 
+      - name: Inject release signing config into Gradle
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        run: |
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('android/app/build.gradle')
+          t = p.read_text()
+          # Add a signingConfigs block reading from -P / ORG_GRADLE_PROJECT_ props,
+          # and reference it from the release build type.
+          inject = """
+          def signKeystore = project.findProperty('vibroSignKeystore')
+          android.signingConfigs.create('release') {
+              if (signKeystore != null && file(signKeystore).exists()) {
+                  storeFile file(signKeystore)
+                  storePassword project.findProperty('vibroSignStorePassword')
+                  keyAlias project.findProperty('vibroSignKeyAlias')
+                  keyPassword project.findProperty('vibroSignKeyPassword')
+              }
+          }
+          """
+          t = t.replace("android {\n    namespace", inject + "android {\n    namespace", 1)
+          t = t.replace(
+              "        release {\n            minifyEnabled false",
+              "        release {\n            signingConfig signingConfigs.release\n            minifyEnabled false",
+              1,
+          )
+          p.write_text(t)
+          print('Patched build.gradle with release signing config')
+          PY
+
       - name: Decode release keystore
         if: ${{ env.HAS_KEYSTORE == 'true' }}
         run: |
