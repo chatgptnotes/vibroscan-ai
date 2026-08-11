@@ -1,7 +1,9 @@
 # VibrationCheck — SCADA Vibration Graph AI Analyzer (MVP)
 
-> 🌐 **Live (frontend):** https://client-weld-delta-60.vercel.app · 📦 **Repo:** https://github.com/Illusion0-0/vibroscan.ai
-> Auto-deploys from `main` via Vercel's GitHub integration.
+> 🌐 **Live app:** https://client-weld-delta-60.vercel.app
+> 📦 **Repo:** https://github.com/Illusion0-0/vibroscan.ai (mirror: https://github.com/chatgptnotes/vibroscan-ai)
+> ⚙️ **Backend:** https://backend-production-48d99.up.railway.app/health
+> Frontend auto-deploys from `main` via Vercel's GitHub integration.
 
 Capture, verify, and analyze industrial SCADA vibration graphs with a configurable AI pipeline, based on the **Brüel & Kjær Vibro Diagnostic Chart**.
 
