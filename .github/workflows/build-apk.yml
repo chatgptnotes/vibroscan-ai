@@ -18,6 +18,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,29 +53,25 @@ jobs:
         run: node scripts/build-mobile.mjs
 
       - name: Decode release keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
           echo "Keystore decoded."
 
-      - name: Build release APK (signed if keystore present, else debug-signed)
-        env:
-          KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && 'app/release.keystore' || '' }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Build SIGNED release APK
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
         working-directory: android
-        run: |
-          if [ -n "$KEYSTORE_PATH" ] && [ -f "$KEYSTORE_PATH" ]; then
-            echo "Building SIGNED release APK..."
-            ./gradlew assembleRelease -Pandroid.injected.signing.store.file=$KEYSTORE_PATH \
-              -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
-              -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
-              -Pandroid.injected.signing.key.password=$KEY_PASSWORD
-          else
-            echo "No keystore secret set — building DEBUG APK (still installs fine, signed with Android debug key)..."
-            ./gradlew assembleDebug
-          fi
+        run: ./gradlew assembleRelease
+        env:
+          ORG_GRADLE_PROJECT_vibroSignKeystore: app/release.keystore
+          ORG_GRADLE_PROJECT_vibroSignStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_vibroSignKeyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_vibroSignKeyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build DEBUG APK (no keystore configured)
+        if: ${{ env.HAS_KEYSTORE != 'true' }}
+        working-directory: android
+        run: ./gradlew assembleDebug
 
       - name: Locate APK
         id: apk
