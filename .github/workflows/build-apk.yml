@@ -81,6 +81,23 @@ jobs:
           print('Patched build.gradle with release signing config')
           PY
 
+      - name: Add CAMERA + MICROPHONE permissions to AndroidManifest
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path('android/app/src/main/AndroidManifest.xml')
+          t = p.read_text()
+          perms = """    <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />"""
+          if 'android.permission.CAMERA' not in t:
+              t = t.replace('<!-- Permissions -->', '<!-- Permissions -->\n' + perms)
+              p.write_text(t)
+              print('Added CAMERA + RECORD_AUDIO + MODIFY_AUDIO_SETTINGS permissions')
+          else:
+              print('Camera permission already present')
+          PY
+
       - name: Decode release keystore
         if: ${{ env.HAS_KEYSTORE == 'true' }}
         run: |
