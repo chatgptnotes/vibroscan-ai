@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { geminiVerify } from './gemini.js';
 import { glmMcpAnalyzeImage } from './glm-mcp.js';
+import { groqVerify } from './groq.js';
 import { VerificationServiceError } from '../errors.js';
 
 const VERIFY_PROMPT =
@@ -8,12 +9,11 @@ const VERIFY_PROMPT =
   'Respond ONLY in valid JSON: {"is_legitimate": true/false, "reason": "brief explanation"}. ' +
   'If it is a personal photo, selfie, document text, or unrelated object, set is_legitimate to false.';
 
-const GROQ_VERIFY_PROMPT = VERIFY_PROMPT; // same prompt works for all providers
-
 /**
- * GLM-MCP verification: GLM-4.6V returns free-form text, not strict JSON.
- * We parse it leniently.
+ * Groq verification is delegated to services/groq.js (handles <think> stripping).
+ * Kept here only for the dispatch table; see groqVerify import.
  */
+// (groqVerify is imported above and dispatched in verifyVibrationGraph.)
 function parseVerificationLenient(text) {
   // Try strict JSON first
   try {
@@ -69,36 +69,6 @@ function parseVerificationStrict(raw) {
     } catch { /* fall through */ }
   }
   throw new VerificationServiceError('Verification model returned unparseable output.');
-}
-
-/**
- * Groq verification helper (same OpenAI format, JSON mode).
- */
-async function groqVerify({ base64, mimeType }) {
-  if (!config.groqApiKey) throw new VerificationServiceError('GROQ_API_KEY not configured.');
-  const res = await fetch(`${config.groqBaseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.groqApiKey}` },
-    body: JSON.stringify({
-      model: config.groqModel,
-      temperature: 0,
-      response_format: { type: 'json_object' },
-      max_tokens: 500,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: GROQ_VERIFY_PROMPT },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-        ],
-      }],
-    }),
-    signal: AbortSignal.timeout(config.requestTimeoutMs),
-  });
-  if (!res.ok) throw new VerificationServiceError(`Groq error ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new VerificationServiceError('Groq returned empty response.');
-  return content;
 }
 
 /**

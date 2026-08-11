@@ -7,6 +7,7 @@ import {
 import { geminiDiagnose, geminiDiagnoseStream, geminiExtractGraphDescription } from './gemini.js';
 import { glmReason, glmReasonStream } from './glm.js';
 import { glmMcpAnalyzeImage } from './glm-mcp.js';
+import { groqExtractDescription } from './groq.js';
 
 const EXTRACT_PROMPT =
   'Examine this vibration graph and produce a dense factual description ONLY of what is visible. Report: chart/graph type, axis labels and units, axis ranges, all visible peaks with frequency/order and amplitude, harmonic markers (1X/2X/3X/nX), sidebands, anomalies. Do NOT diagnose — only describe. Use compact Markdown.';
@@ -18,7 +19,10 @@ async function extractGraphDescription({ base64, mimeType, buffer }) {
   if (config.visionProvider === 'glm-mcp') {
     return glmMcpAnalyzeImage(buffer, EXTRACT_PROMPT, { analysisFocus: 'peaks and frequencies' });
   }
-  // gemini (default) and groq both use Gemini's inline extraction path
+  if (config.visionProvider === 'groq') {
+    return groqExtractDescription({ base64, mimeType });
+  }
+  // gemini (default)
   return geminiExtractGraphDescription({ base64, mimeType });
 }
 
