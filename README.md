@@ -1,6 +1,9 @@
 # VibrationCheck — SCADA Vibration Graph AI Analyzer (MVP)
 
-Capture, verify, and analyze industrial SCADA vibration graphs with Gemini Vision & Reasoning models, based on the **Brüel & Kjær Vibro Diagnostic Chart**.
+> 🌐 **Live (frontend):** https://client-weld-delta-60.vercel.app · 📦 **Repo:** https://github.com/Illusion0-0/vibroscan.ai
+> Auto-deploys from `main` via Vercel's GitHub integration.
+
+Capture, verify, and analyze industrial SCADA vibration graphs with a configurable AI pipeline, based on the **Brüel & Kjær Vibro Diagnostic Chart**.
 
 Mobile-first **PWA** (camera + bilingual speech-to-text) → **Express** API → two-tier AI pipeline:
 
