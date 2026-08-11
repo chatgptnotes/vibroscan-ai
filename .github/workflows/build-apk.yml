@@ -58,20 +58,17 @@ jobs:
         if: ${{ env.HAS_KEYSTORE == 'true' }}
         run: |
           python3 - <<'PY'
-          import re, pathlib
+          import pathlib
           p = pathlib.Path('android/app/build.gradle')
           t = p.read_text()
-          # Add a signingConfigs block reading from -P / ORG_GRADLE_PROJECT_ props,
-          # and reference it from the release build type.
+          # Insert a signingConfigs.release block that ALWAYS reads the props
+          # (the keystore file is decoded in the next step before gradle runs).
           inject = """
-          def signKeystore = project.findProperty('vibroSignKeystore')
           android.signingConfigs.create('release') {
-              if (signKeystore != null && file(signKeystore).exists()) {
-                  storeFile file(signKeystore)
-                  storePassword project.findProperty('vibroSignStorePassword')
-                  keyAlias project.findProperty('vibroSignKeyAlias')
-                  keyPassword project.findProperty('vibroSignKeyPassword')
-              }
+              storeFile file(project.findProperty('vibroSignKeystore') ?: 'release.keystore')
+              storePassword project.findProperty('vibroSignStorePassword') ?: ''
+              keyAlias project.findProperty('vibroSignKeyAlias') ?: ''
+              keyPassword project.findProperty('vibroSignKeyPassword') ?: ''
           }
           """
           t = t.replace("android {\n    namespace", inject + "android {\n    namespace", 1)
@@ -95,7 +92,7 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease
         env:
-          ORG_GRADLE_PROJECT_vibroSignKeystore: app/release.keystore
+          ORG_GRADLE_PROJECT_vibroSignKeystore: release.keystore
           ORG_GRADLE_PROJECT_vibroSignStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ORG_GRADLE_PROJECT_vibroSignKeyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_vibroSignKeyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
