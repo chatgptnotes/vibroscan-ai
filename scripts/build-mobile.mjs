@@ -33,6 +33,13 @@ function run(cmd, args, cwd, extraEnv = {}) {
 run('npm', ['run', 'build'], CLIENT, { VITE_API_URL: apiUrl });
 console.log('✓ Web build complete');
 
+// 2b. Ensure the android/ native project exists (it's gitignored).
+const androidDir = resolve(ROOT, 'android');
+if (!existsSync(androidDir)) {
+  console.log('android/ missing — running `npx cap add android`...');
+  run('npx', ['cap', 'add', 'android'], ROOT);
+}
+
 // 3. Capacitor sync (copies dist → android/app/src/main/assets/public)
 run('npx', ['cap', 'sync', 'android'], ROOT);
 console.log('✓ Capacitor sync complete — Android project ready.');

@@ -47,9 +47,11 @@ jobs:
         run: npm install
         working-directory: client
 
-      - name: Build web + sync to Android
+      - name: Build web + add Android platform + sync
         env:
           VITE_API_URL_MOBILE: 'https://backend-production-48d99.up.railway.app'
+        # build-mobile.mjs builds client/dist, adds the android/ native project
+        # if missing (it's gitignored), then runs `cap sync`.
         run: node scripts/build-mobile.mjs
 
       - name: Inject release signing config into Gradle
