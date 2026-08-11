@@ -27,3 +27,10 @@ Thumbs.db
 *-result.txt
 *-out.txt
 *-err.txt
+
+# Capacitor / Android native project (regenerable via `npm run add:android`)
+/android/
+.gradle/
+local.properties
+*.keystore
+!debug.keystore

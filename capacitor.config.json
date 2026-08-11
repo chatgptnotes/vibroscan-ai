@@ -1,0 +1,11 @@
+{
+  "appId": "com.vibroscan.ai",
+  "appName": "VibrationCheck",
+  "webDir": "client/dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

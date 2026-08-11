@@ -1,0 +1,19 @@
+{
+  "name": "vibroscan-ai-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor wrapper that turns the VibrationCheck web build (client/dist) into an Android APK. The web app in client/ is untouched by this layer.",
+  "scripts": {
+    "mobile:build": "node scripts/build-mobile.mjs",
+    "mobile:sync": "node scripts/build-mobile.mjs && npx cap sync android",
+    "mobile:open": "npx cap open android",
+    "mobile:add": "npx cap add android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}
