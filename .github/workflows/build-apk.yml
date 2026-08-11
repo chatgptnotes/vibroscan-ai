@@ -106,7 +106,7 @@ jobs:
         id: apk
         working-directory: android
         run: |
-          APK=$(find . -name "*.apk" -path "*build/outputs*" | head -1)
+          APK=$(find . -name "*.apk" -path "*build/outputs*" | head -1 | sed 's|^\./||')
           echo "path=$APK" >> $GITHUB_OUTPUT
           echo "Found APK: $APK"
 
