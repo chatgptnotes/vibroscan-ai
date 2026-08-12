@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config.js';
 import { VerificationServiceError, DiagnosticServiceError } from '../errors.js';
 import { VERIFICATION_PROMPT } from '../prompts/verification.js';
+import { EXTRACTION_PROMPT } from '../prompts/extraction.js';
 
 let _client = null;
 function client() {
@@ -50,6 +51,37 @@ export async function geminiVerify({ base64, mimeType }) {
     return result.response.text();
   } catch (err) {
     guardVerification(err);
+  }
+}
+
+/**
+ * Deterministic path — structured FEATURE extraction only (no diagnosis).
+ * Returns a parsed JSON object { chartType, axisX, axisY, peaks[], resonances[], ... }
+ * that feeds the rule engine. Uses JSON output mode for guaranteed valid JSON.
+ */
+export async function geminiExtractStructured({ base64, mimeType }) {
+  let raw;
+  try {
+    const model = client().getGenerativeModel({
+      model: config.geminiVerificationModel, // fast vision model is sufficient for reading
+      generationConfig: { responseMimeType: 'application/json', temperature: 0 },
+      requestOptions: { timeout: config.requestTimeoutMs },
+    });
+    const result = await model.generateContent([
+      { inlineData: { data: base64, mimeType } },
+      { text: EXTRACTION_PROMPT },
+    ]);
+    raw = result.response.text();
+  } catch (err) {
+    guardDiagnostic(err);
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new DiagnosticServiceError(
+      `Deterministic extractor returned non-JSON output: ${(raw || '').slice(0, 200)}`,
+      { cause: err }
+    );
   }
 }
 

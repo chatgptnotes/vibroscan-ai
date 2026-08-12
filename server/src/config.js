@@ -35,7 +35,9 @@ export const config = {
   glmBaseUrl: (process.env.GLM_BASE_URL || 'https://api.z.ai/api/coding/paas/v4').replace(/\/+$/, ''),
   glmMaxTokens: toInt(process.env.GLM_MAX_TOKENS, 16000),
 
-  // Which provider powers Tier-2 diagnostics: gemini | glm
+  // Which provider powers Tier-2 diagnostics: gemini | glm | deterministic
+  //   deterministic = vision extracts structured features, then fixed rule code
+  //                  evaluates the B&K rule base (needs GEMINI_API_KEY for vision)
   diagnosticProvider: (process.env.DIAGNOSTIC_PROVIDER || 'glm').toLowerCase(),
 
   // ── Vision provider (Tier-1 verification + Tier-2 image extraction) ───
@@ -82,6 +84,9 @@ export function assertServerConfig() {
   // Diagnostic (reasoning) provider key requirements
   if (config.diagnosticProvider === 'gemini' && !config.geminiApiKey) {
     missing.push('GEMINI_API_KEY (required when DIAGNOSTIC_PROVIDER=gemini)');
+  }
+  if (config.diagnosticProvider === 'deterministic' && !config.geminiApiKey) {
+    missing.push('GEMINI_API_KEY (required when DIAGNOSTIC_PROVIDER=deterministic — vision extraction)');
   }
   if (config.diagnosticProvider === 'glm' && !config.glmApiKey) {
     missing.push('GLM_API_KEY (required when DIAGNOSTIC_PROVIDER=glm)');
