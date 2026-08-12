@@ -9,6 +9,7 @@ import { glmReason, glmReasonStream } from './glm.js';
 import { glmMcpAnalyzeImage } from './glm-mcp.js';
 import { groqExtractDescription } from './groq.js';
 import { evaluateRules, renderDeterministicReport } from './ruleEngine.js';
+import { synthesizeSpectrumFromWaveform } from './waveformFFT.js';
 
 const EXTRACT_PROMPT =
   'Examine this vibration graph and produce a dense factual description ONLY of what is visible. Report: chart/graph type, axis labels and units, axis ranges, all visible peaks with frequency/order and amplitude, harmonic markers (1X/2X/3X/nX), sidebands, anomalies. Do NOT diagnose — only describe. Use compact Markdown.';
@@ -35,10 +36,30 @@ async function extractGraphDescription({ base64, mimeType, buffer }) {
  *  - diagnosticProvider=glm: vision provider extracts a graph description,
  *    then GLM reasons over it (B&K rule base as system message).
  */
+/**
+ * Deterministic path: vision extracts structured features → fixed rule code.
+ * If the chart is a Time Waveform, first synthesize a spectrum via FFT so the
+ * frequency-domain rules can fire.
+ */
+async function deterministicExtraction({ base64, mimeType, buffer }) {
+  let extraction = await geminiExtractStructured({ base64, mimeType });
+  const ct = String(extraction?.chartType || '').toLowerCase();
+  if (ct.includes('time waveform') || ct.includes('waveform')) {
+    try {
+      extraction = await synthesizeSpectrumFromWaveform(buffer, extraction);
+    } catch (err) {
+      // FFT synthesis failed (e.g. no trace found) — fall back to original
+      // extraction; the rule engine will report INSUFFICIENT_DATA.
+      console.warn('[deterministic] FFT synthesis skipped:', err.message);
+    }
+  }
+  return extraction;
+}
+
 export async function runDiagnostics({ base64, mimeType, buffer, userDescription }) {
   // ── Deterministic path: vision extracts structured features → fixed rule code ──
   if (config.diagnosticProvider === 'deterministic') {
-    const extraction = await geminiExtractStructured({ base64, mimeType });
+    const extraction = await deterministicExtraction({ base64, mimeType, buffer });
     const evaluation = evaluateRules(extraction);
     const report = renderDeterministicReport(extraction, evaluation);
     return {
@@ -81,7 +102,7 @@ export async function runDiagnostics({ base64, mimeType, buffer, userDescription
 export async function* runDiagnosticsStream({ base64, mimeType, buffer, userDescription }) {
   // ── Deterministic path: computed in one shot, then streamed in sections ──
   if (config.diagnosticProvider === 'deterministic') {
-    const extraction = await geminiExtractStructured({ base64, mimeType });
+    const extraction = await deterministicExtraction({ base64, mimeType, buffer });
     const evaluation = evaluateRules(extraction);
     const report = renderDeterministicReport(extraction, evaluation);
     // Yield section-by-section so the UI keeps its progressive "typing" feel.

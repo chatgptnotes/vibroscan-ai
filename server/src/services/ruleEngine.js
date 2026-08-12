@@ -336,24 +336,35 @@ export function renderDeterministicReport(ext, evalResult) {
     .filter((p) => Number.isFinite(p.freq) && Number.isFinite(p.amplitude))
     .sort((a, b) => b.amplitude - a.amplitude);
 
+  // For an FFT-synthesized spectrum, frequencies are in Hz (not the original
+  // time axis unit), and peaks come from DSP rather than vision extraction.
+  const synthFrom = ext?.synthFrom === 'fft';
+  const freqUnit = synthFrom ? 'Hz' : (ax.unit || 'Hz');
+  const findingsLabel = synthFrom
+    ? 'Key Spectral Findings (FFT-synthesized from time waveform, ranked by amplitude)'
+    : 'Key Spectral Findings (vision-extracted, ranked by amplitude)';
+
   // ── Graph Classification ──
   const lines = [];
   lines.push('### Graph Classification');
   lines.push(`- **Chart type:** ${chartType}`);
   lines.push(`- **X-axis:** ${ax.quantity || 'Frequency'} (${ax.unit || '—'}) range ${fmtNum(ax.min)}–${fmtNum(ax.max)}`);
   lines.push(`- **Y-axis:** ${ay.quantity || 'Amplitude'} (${ay.unit || '—'}) range ${fmtNum(ay.min)}–${fmtNum(ay.max)}`);
+  if (synthFrom && ext?._fftMeta) {
+    lines.push(`- **FFT synthesis:** ${ext._fftMeta.samples} samples @ ${ext._fftMeta.sampleRateHz} Hz sample rate (Nyquist ${ext._fftMeta.nyquistHz} Hz)`);
+  }
   lines.push('');
   lines.push('> Deterministic engine — features were read by vision (Stage 1) and evaluated against the B&K rule base by fixed code (Stage 2). Same input always yields this output.');
   lines.push('');
 
   // ── Key Spectral Findings ──
-  lines.push('### Key Spectral Findings (vision-extracted, ranked by amplitude)');
+  lines.push(`### ${findingsLabel}`);
   if (!sorted.length) {
     lines.push('- No discrete peaks extracted.');
   } else {
     sorted.slice(0, 10).forEach((p, i) => {
       const note = p.note ? ` — *${p.note}*` : '';
-      lines.push(`${i + 1}. **${fmtNum(p.freq)} ${ax.unit || 'Hz'}** @ **${fmtNum(p.amplitude)} ${ay.unit || ''}**${note}`);
+      lines.push(`${i + 1}. **${fmtNum(p.freq)} ${freqUnit}** @ **${fmtNum(p.amplitude)}**${note}`);
     });
   }
   const res = Array.isArray(ext?.resonances) ? ext.resonances.filter(Number.isFinite) : [];
