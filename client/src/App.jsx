@@ -16,7 +16,7 @@ export default function App() {
   const [liveTranscript, setLiveTranscript] = useState('');
   const [lang, setLang] = useState('en-IN');
   const [status, setStatus] = useState(STATUS.IDLE);
-  const [result, setResult] = useState(null); // { report, provider, model, streaming }
+  const [result, setResult] = useState(null); // { report, provider, model, streaming, spectrumImage }
   const [error, setError] = useState(null);
   const [streamStage, setStreamStage] = useState('verifying');
   const [elapsed, setElapsed] = useState(0);
@@ -64,6 +64,7 @@ export default function App() {
     setResult(null);
 
     let partial = '';
+    let spectrumImage = null; // captured from the 'spectrum' SSE event
     try {
       await analyzeVibrationStream({
         imageFile: image.file,
@@ -74,9 +75,14 @@ export default function App() {
             case 'stage':
               setStreamStage(data.stage || 'verifying');
               break;
+            case 'spectrum':
+              // Synthesized FFT spectrum image — keep for the duration of the run.
+              spectrumImage = data.image;
+              setResult({ report: partial, provider: null, model: null, streaming: true, spectrumImage });
+              break;
             case 'chunk':
               partial += data.text || '';
-              setResult({ report: partial, provider: null, model: null, streaming: true });
+              setResult({ report: partial, provider: null, model: null, streaming: true, spectrumImage });
               setStatus(STATUS.STREAMING);
               break;
             case 'done':
@@ -85,6 +91,7 @@ export default function App() {
                 provider: data.provider,
                 model: data.model,
                 streaming: false,
+                spectrumImage,
               });
               setStatus(STATUS.DONE);
               break;

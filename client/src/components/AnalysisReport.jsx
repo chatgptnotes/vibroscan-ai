@@ -40,6 +40,18 @@ export default function AnalysisReport({ result }) {
       </div>
 
       <div className="report-body">
+        {result.spectrumImage && (
+          <figure className="mb-4 overflow-hidden rounded-2xl bg-slate-900/60 ring-1 ring-slate-800">
+            <img
+              src={result.spectrumImage}
+              alt="Synthesized FFT spectrum from the time-waveform input"
+              className="mx-auto w-full max-w-2xl"
+            />
+            <figcaption className="px-3 py-1.5 text-center text-[11px] text-slate-400">
+              Synthesized FFT spectrum — peaks labeled 1X/2X/3X where they align with the dominant frequency
+            </figcaption>
+          </figure>
+        )}
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.report || ''}</ReactMarkdown>
       </div>
     </div>

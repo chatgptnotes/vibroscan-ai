@@ -9,7 +9,7 @@ import { glmReason, glmReasonStream } from './glm.js';
 import { glmMcpAnalyzeImage } from './glm-mcp.js';
 import { groqExtractDescription } from './groq.js';
 import { evaluateRules, renderDeterministicReport } from './ruleEngine.js';
-import { synthesizeSpectrumFromWaveform } from './waveformFFT.js';
+import { synthesizeSpectrumFromWaveform, renderSpectrumSVG } from './waveformFFT.js';
 
 const EXTRACT_PROMPT =
   'Examine this vibration graph and produce a dense factual description ONLY of what is visible. Report: chart/graph type, axis labels and units, axis ranges, all visible peaks with frequency/order and amplitude, harmonic markers (1X/2X/3X/nX), sidebands, anomalies. Do NOT diagnose — only describe. Use compact Markdown.';
@@ -56,6 +56,23 @@ async function deterministicExtraction({ base64, mimeType, buffer }) {
   return extraction;
 }
 
+/**
+ * If the extraction was FFT-synthesized from a time waveform, render the
+ * resulting spectrum as an SVG data-URI so the UI can display it.
+ * Returns null for non-synthesized (direct FFT) inputs.
+ */
+function buildSpectrumImage(extraction) {
+  if (extraction?.synthFrom !== 'fft' || !extraction._spectrum) return null;
+  const svg = renderSpectrumSVG({
+    magnitude: extraction._spectrum.magnitude,
+    frequencies: extraction._spectrum.frequencies,
+    peaks: extraction.peaks,
+    axisY: extraction.axisY,
+  });
+  if (!svg) return null;
+  return 'data:image/svg+xml;base64,' + Buffer.from(svg, 'utf-8').toString('base64');
+}
+
 export async function runDiagnostics({ base64, mimeType, buffer, userDescription }) {
   // ── Deterministic path: vision extracts structured features → fixed rule code ──
   if (config.diagnosticProvider === 'deterministic') {
@@ -66,6 +83,7 @@ export async function runDiagnostics({ base64, mimeType, buffer, userDescription
       provider: 'deterministic',
       model: 'rule-engine-v1',
       report,
+      spectrumImage: buildSpectrumImage(extraction),
     };
   }
 
@@ -105,7 +123,10 @@ export async function* runDiagnosticsStream({ base64, mimeType, buffer, userDesc
     const extraction = await deterministicExtraction({ base64, mimeType, buffer });
     const evaluation = evaluateRules(extraction);
     const report = renderDeterministicReport(extraction, evaluation);
-    // Yield section-by-section so the UI keeps its progressive "typing" feel.
+    // First, surface a synthesized spectrum image (if any) as a side-channel.
+    const spectrumImage = buildSpectrumImage(extraction);
+    if (spectrumImage) yield { spectrumImage };
+    // Then yield section-by-section so the UI keeps its progressive "typing" feel.
     const sections = report.split('\n\n');
     for (const section of sections) {
       yield section + '\n\n';

@@ -61,6 +61,7 @@ analyzeRouter.post('/analyze-vibration', upload.single('image'), async (req, res
       report: diagnosis.report,
       provider: diagnosis.provider,
       model: diagnosis.model,
+      spectrumImage: diagnosis.spectrumImage || null,
     });
   } catch (err) {
     next(err);

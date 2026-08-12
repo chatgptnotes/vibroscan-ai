@@ -21,6 +21,7 @@ function sse(res, event, data) {
  *   stage    { stage: 'verifying' | 'diagnosing' }
  *   verified { reason }
  *   rejected { verified:false, reason }   -> abort (Tier 1 failed)
+ *   spectrum { image }                    -> synthesized FFT spectrum (time-waveform input only)
  *   chunk    { text }                     -> diagnostic Markdown delta
  *   done     { provider, model }
  *   error    { message, serviceError }    -> abort
@@ -96,6 +97,11 @@ streamRouter.post('/analyze-stream', upload.single('image'), async (req, res) =>
       userDescription,
     })) {
       if (clientGone || res.writableEnded) break;
+      // Side-channel: a synthesized spectrum image (object, not a string).
+      if (typeof chunk === 'object' && chunk !== null && chunk.spectrumImage) {
+        sse(res, 'spectrum', { image: chunk.spectrumImage });
+        continue;
+      }
       sse(res, 'chunk', { text: chunk });
     }
 

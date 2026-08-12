@@ -247,5 +247,123 @@ export async function synthesizeSpectrumFromWaveform(buffer, extraction) {
       nyquistHz: Math.round(sampleRateHz / 2),
       traceTheme: theme,
     },
+    _spectrum: { magnitude, frequencies }, // kept so the renderer can draw it
   };
+}
+
+// ---------- spectrum visualization (pure SVG, no dependencies) ----------
+
+/**
+ * Render the magnitude spectrum as a standalone SVG string (dark-themed to
+ * match the app UI). Highlights the detected peaks with vertical markers and
+ * 1X/2X/3X labels. Frequency axis is capped for legibility (otherwise the
+ * Nyquist can be ~8 kHz and squash all peaks to the left edge).
+ */
+export function renderSpectrumSVG({ magnitude, frequencies, peaks, axisY, maxFreqHz } = {}) {
+  if (!magnitude || !frequencies || !magnitude.length) return null;
+
+  const topPeaks = (peaks || []).slice(0, 10);
+  const peakMax = topPeaks.length ? Math.max(...topPeaks.map((p) => p.freq)) : 0;
+  const fMax = Math.max(maxFreqHz || 0, peakMax * 1.15, 500);
+
+  const pts = [];
+  let magMax = 0;
+  for (let k = 0; k < frequencies.length; k++) {
+    const f = frequencies[k];
+    if (f > fMax) break;
+    const m = magnitude[k];
+    pts.push({ f, m });
+    if (m > magMax) magMax = m;
+  }
+  if (!pts.length || magMax <= 0) return null;
+  const aMax = magMax * 1.15;
+
+  const W = 760, H = 320;
+  const padL = 52, padR = 16, padT = 18, padB = 42;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const xOf = (f) => padL + (f / fMax) * plotW;
+  const yOf = (m) => padT + plotH - (m / aMax) * plotH;
+
+  const fTicks = niceTicks(0, fMax, 6);
+  const aTicks = niceTicks(0, aMax, 4);
+  const ampUnit = axisY?.unit ? ` ${axisY.unit}` : '';
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif">`;
+  svg += `<rect x="0" y="0" width="${W}" height="${H}" rx="14" fill="#0f172a"/>`;
+  svg += `<text x="${padL}" y="14" fill="#94a3b8" font-size="12" font-weight="600">Synthesized FFT Spectrum (from time waveform)</text>`;
+  for (const a of aTicks) {
+    const y = yOf(a);
+    svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#1e293b" stroke-width="1"/>`;
+    svg += `<text x="${padL - 8}" y="${y + 3}" fill="#64748b" font-size="10" text-anchor="end">${fmt(a)}</text>`;
+  }
+  for (const f of fTicks) {
+    const x = xOf(f);
+    svg += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT + plotH}" stroke="#1e293b" stroke-width="1"/>`;
+    svg += `<text x="${x}" y="${H - padB + 16}" fill="#64748b" font-size="10" text-anchor="middle">${fmt(f)}</text>`;
+  }
+  svg += `<text x="${padL + plotW / 2}" y="${H - 6}" fill="#94a3b8" font-size="11" text-anchor="middle">Frequency (Hz)</text>`;
+  svg += `<text x="14" y="${padT + plotH / 2}" fill="#94a3b8" font-size="11" text-anchor="middle" transform="rotate(-90 14 ${padT + plotH / 2})">Amplitude${ampUnit}</text>`;
+
+  // magnitude area (filled) + line
+  let area = `M ${xOf(pts[0].f)} ${padT + plotH}`;
+  for (const p of pts) area += ` L ${xOf(p.f).toFixed(2)} ${yOf(p.m).toFixed(2)}`;
+  area += ` L ${xOf(pts[pts.length - 1].f)} ${padT + plotH} Z`;
+  svg += `<path d="${area}" fill="#0ea5e9" fill-opacity="0.18"/>`;
+  let line = '';
+  for (let i = 0; i < pts.length; i++) {
+    line += (i === 0 ? 'M' : 'L') + ` ${xOf(pts[i].f).toFixed(2)} ${yOf(pts[i].m).toFixed(2)} `;
+  }
+  svg += `<path d="${line}" fill="none" stroke="#38bdf8" stroke-width="1.5"/>`;
+
+  // peak markers with 1X/2X/3X labels where they align
+  const fundamental = topPeaks[0]?.freq;
+  let nextHarmonic = 1;
+  for (const pk of topPeaks.slice(0, 6)) {
+    if (pk.freq > fMax) break;
+    const x = xOf(pk.freq);
+    const y = yOf(pk.amplitude);
+    let label = `${fmt(pk.freq)} Hz`;
+    if (fundamental && nextHarmonic <= 6) {
+      const ratio = pk.freq / fundamental;
+      const n = Math.round(ratio);
+      if (n >= 1 && n <= 6 && Math.abs(ratio - n) <= 0.06) {
+        label = `${n}X · ${fmt(pk.freq)} Hz`;
+        nextHarmonic = n + 1;
+      }
+    }
+    svg += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT + plotH}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3 3" opacity="0.8"/>`;
+    svg += `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="3.5" fill="#f59e0b" stroke="#0f172a" stroke-width="1"/>`;
+    const lblY = Math.max(padT + 12, y - 10);
+    svg += `<text x="${x.toFixed(2)}" y="${lblY}" fill="#fbbf24" font-size="10.5" font-weight="600" text-anchor="middle">${label}</text>`;
+  }
+
+  svg += `</svg>`;
+  return svg;
+}
+
+// ---- svg helpers ----
+
+function fmt(n) {
+  if (!Number.isFinite(n)) return '0';
+  if (n >= 100) return n.toFixed(0);
+  if (n >= 10) return n.toFixed(1).replace(/\.0$/, '');
+  return n.toFixed(2).replace(/0$/, '').replace(/\.$/, '');
+}
+
+function niceTicks(min, max, count) {
+  if (max <= min) return [min];
+  const range = max - min;
+  const step0 = range / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const norm = step0 / mag;
+  let step;
+  if (norm < 1.5) step = 1 * mag;
+  else if (norm < 3) step = 2 * mag;
+  else if (norm < 7) step = 5 * mag;
+  else step = 10 * mag;
+  const ticks = [];
+  for (let v = 0; v <= max + 1e-9; v += step) ticks.push(Number(v.toFixed(6)));
+  return ticks;
 }
