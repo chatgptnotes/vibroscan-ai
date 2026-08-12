@@ -6,7 +6,9 @@ import AppBody from './AppBody.jsx';
 import { STATUS } from './status.js';
 
 // Whole-pipeline client timeout (verify + diagnose are two model calls).
-const CLIENT_TIMEOUT_MS = 180000;
+// Pro reasoning models (gemini-3.1-pro-preview) take ~100s to first token, so
+// keep this >= server REQUEST_TIMEOUT_MS to avoid premature client aborts.
+const CLIENT_TIMEOUT_MS = 240000;
 
 export default function App() {
   const [image, setImage] = useState(null); // { file, previewUrl, ... }
